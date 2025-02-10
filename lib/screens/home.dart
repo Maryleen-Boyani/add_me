@@ -3,23 +3,25 @@ import 'package:flutter_application_1/model/todo.dart';
 import 'package:flutter_application_1/widgets/ToDoItem.dart';
 
 class Home extends StatefulWidget {
-  Home({super.key});
+  const Home({super.key});
 
   @override
   State<Home> createState() => _HomeState();
 }
 
 class _HomeState extends State<Home> {
-  final todosList = Todo.todoList();
-  List<Todo> foundToDo=[];
-  final _toDoController= TextEditingController();
-  
+  final todosList = Todo.todoList(); //a var to store the items in the list
+  List<Todo> _foundToDo = [];
+  final _toDoController = TextEditingController();
+
   @override
+  //you are fetching the data in the todoslist and assigning it to the var on initialstate
+
   void initState() {
-    foundToDo= todosList;
+    _foundToDo = todosList;
     super.initState();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -42,7 +44,7 @@ class _HomeState extends State<Home> {
                             fontSize: 30, fontWeight: FontWeight.w500),
                       ),
                     ),
-                    for (Todo todo in todosList)
+                    for (Todo todo in _foundToDo.reversed)
                       ToDoItem(
                         todo: todo,
                         onDeleteItem: _deleteToDoItem,
@@ -133,7 +135,7 @@ class _HomeState extends State<Home> {
         });
   }
 
-  void addToDoItem(String toDo){
+  void addToDoItem(String toDo) {
     setState(() {
       todosList.add(Todo(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -142,6 +144,23 @@ class _HomeState extends State<Home> {
     });
     _toDoController.clear();
   }
+
+  void _runFilter(String enteredKeyword) {
+    List<Todo> results = [];
+    if (enteredKeyword.isEmpty) {
+      results = todosList;
+    } else {
+      results = todosList
+          .where((item) => item.todoText
+              .toLowerCase()
+              .contains(enteredKeyword.toLowerCase()))
+          .toList();
+    }
+    setState(() {
+      _foundToDo = results;
+    });
+  }
+
   Widget searchBox() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 15),
@@ -150,6 +169,7 @@ class _HomeState extends State<Home> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: TextField(
+        onChanged: (value) => _runFilter(value),
         decoration: InputDecoration(
             contentPadding: EdgeInsets.all(0),
             prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
