@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/model/todo.dart';
-import 'package:flutter_application_1/widgets/ToDoItem.dart';
+import '../todo_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,15 +13,87 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   final todosList = Todo.todoList(); //a var to store the items in the list
-  List<Todo> _foundToDo = [];
+  List<dynamic> _foundToDo = [];
   final _toDoController = TextEditingController();
+  final TodoService _todoService = TodoService();
+
+  void _deleteTodo(int id) async {
+    final response = await http.delete(
+      Uri.parse('http://127.0.0.1:8000/api/todos/$id/'),
+    );
+
+    if (response.statusCode == 204) {
+      _loadTodos();
+    } else {
+      throw Exception('Failed to delete todo');
+    }
+  }
+
+  void _toggleTodo(int id, bool completed) async {
+    final response = await http.patch(
+      Uri.parse('http://127.0.0.1:8000/api/todos/$id/'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'completed': completed}),
+    );
+
+    if (response.statusCode == 200) {
+      _loadTodos(); // Refresh list after update
+    } else {
+      throw Exception('Failed to update todo');
+    }
+  }
 
   @override
   //you are fetching the data in the todoslist and assigning it to the var on initialstate
 
   void initState() {
-    _foundToDo = todosList;
     super.initState();
+    _loadTodos();
+  }
+
+  void _loadTodos() async {
+    try {
+      final todos = await _todoService.fetchTodos();
+      setState(() {
+        _foundToDo = todos;
+      });
+    } catch (e) {
+      // Handle error
+      print(e);
+    }
+  }
+
+  _addTodo() async {
+    var response = await http.post(
+      Uri.parse('http://127.0.0.1:8000/api/todos/'),
+      headers: {'Content-Type': 'application/json'},
+      body: json
+          .encode({'title': _toDoController.text, 'description': 'New Todo'}),
+    );
+
+    if (response.statusCode == 201) {
+      _loadTodos(); // Reload the list after adding
+    } else {
+      throw Exception('Failed to add todo');
+    }
+
+    _toDoController.clear();
+  }
+
+  _updateTodoStatus(String todoId, bool isDone) async {
+    final response = await http.put(
+      Uri.parse('http://127.0.0.1:8000/api/todos/$todoId/'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'is_done': isDone, // Update the 'is_done' status in the backend
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      _loadTodos(); // Reload todos to reflect changes
+    } else {
+      throw Exception('Failed to update todo status');
+    }
   }
 
   @override
@@ -32,25 +106,57 @@ class _HomeState extends State<Home> {
               vertical: 15), //creates padding around the container
           child: Column(
             children: [
-              Padding(padding: const EdgeInsets.all(20.0), child: searchBox()),
+              Container(
+                margin: EdgeInsets.only(top: 20, bottom: 20),
+                child: Text(
+                  "All my To-Dos",
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w500),
+                ),
+              ),
               Expanded(
-                child: ListView(
-                  children: [
-                    Container(
-                      margin: EdgeInsets.only(top: 20, bottom: 20),
-                      child: Text(
-                        "All my To-Dos",
-                        style: TextStyle(
-                            fontSize: 30, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                    for (Todo todo in _foundToDo.reversed)
-                      ToDoItem(
-                        todo: todo,
-                        onDeleteItem: _deleteToDoItem,
-                        onToDoChanged: _handleToDoChange,
-                      )
-                  ],
+                child: ListView.builder(
+                  itemCount: _foundToDo.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      leading: Checkbox(
+                          value: _foundToDo[index]['isDone'] ?? false,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              _foundToDo[index]['isDone'] = value;
+                            });
+                            _updateTodoStatus(_foundToDo[index]['id'], value!);
+                          }),
+                      title: Text(_foundToDo[index]['title']),
+                      trailing: IconButton(
+                          onPressed: () {
+                            showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: Text("Delete To-Do"),
+                                    content: Text(
+                                        "Are you sure you want to delete this item?"),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () {
+                                            _deleteTodo(
+                                                _foundToDo[index]['id']);
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text("Yes")),
+                                      TextButton(
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          },
+                                          child: Text("No"))
+                                    ],
+                                  );
+                                });
+                          },
+                          icon: Icon(Icons.delete),
+                          color: Colors.red),
+                    );
+                  },
                 ),
               )
             ],
@@ -89,9 +195,7 @@ class _HomeState extends State<Home> {
                       backgroundColor:
                           WidgetStateProperty.all(Colors.blueAccent),
                     ),
-                    onPressed: () {
-                      addToDoItem(_toDoController.text);
-                    },
+                    onPressed: _addTodo,
                     child: Text(
                       "+",
                       style: TextStyle(fontSize: 40, color: Colors.white),
@@ -101,86 +205,6 @@ class _HomeState extends State<Home> {
           ),
         )
       ],
-    );
-  }
-
-  void _handleToDoChange(Todo todo) {
-    setState(() {
-      todo.isDone = !todo.isDone;
-    });
-  }
-
-  void _deleteToDoItem(String id, BuildContext context) {
-    showDialog(
-        context: context,
-        builder: (BuildContext ctx) {
-          return AlertDialog(
-            title: Text("Sure you want to delete?"),
-            actions: [
-              TextButton(
-                  onPressed: () {
-                    setState(() {
-                      todosList.removeWhere((item) => item.id == id);
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: Text("Yes")),
-              TextButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                  },
-                  child: Text("No"))
-            ],
-          );
-        });
-  }
-
-  void addToDoItem(String toDo) {
-    setState(() {
-      todosList.add(Todo(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          todoText: toDo,
-          isDone: false));
-    });
-    _toDoController.clear();
-  }
-
-  void _runFilter(String enteredKeyword) {
-    List<Todo> results = [];
-    if (enteredKeyword.isEmpty) {
-      results = todosList;
-    } else {
-      results = todosList
-          .where((item) => item.todoText
-              .toLowerCase()
-              .contains(enteredKeyword.toLowerCase()))
-          .toList();
-    }
-    setState(() {
-      _foundToDo = results;
-    });
-  }
-
-  Widget searchBox() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: TextField(
-        onChanged: (value) => _runFilter(value),
-        decoration: InputDecoration(
-            contentPadding: EdgeInsets.all(0),
-            prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
-            prefixIconConstraints: BoxConstraints(
-              maxHeight: 20,
-              maxWidth: 25,
-            ),
-            border: InputBorder.none,
-            hintText: 'Search a To-Do Item',
-            hintStyle: TextStyle(color: Colors.grey)),
-      ),
     );
   }
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/screens/home.dart';
+// import 'package:flutter_application_1/screens/home.dart';
+import 'package:flutter_application_1/screens/profile.dart';
+import 'package:flutter_application_1/screens/todoPage.dart';
 
 import 'model/todo.dart';
 
@@ -22,24 +25,28 @@ class MyApp extends StatelessWidget {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(
-                Icons.menu,
-                size: 30,
-              ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    image: DecorationImage(
-                        image: AssetImage('assets/images/Bobo.jpg'),
-                        fit: BoxFit.cover)),
-              )
+              Text("AddMe"),
+              Builder(builder: (context) {
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (context) => MyProfile()));
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        image: DecorationImage(
+                            image: AssetImage('assets/images/Bobo.jpg'),
+                            fit: BoxFit.cover)),
+                  ),
+                );
+              }),
             ],
           ),
         ),
         body: Home(),
-        
       ),
     );
   }
